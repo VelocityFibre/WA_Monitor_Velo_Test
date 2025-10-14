@@ -41,8 +41,8 @@ COPY .env.template ./ 2>/dev/null || true
 # Create directories for persistent data
 RUN mkdir -p /app/store /app/logs
 
-# Copy any existing WhatsApp session files
-COPY services/whatsapp-bridge/store/ /app/store/ 2>/dev/null || true
+# Note: WhatsApp session files will be created at runtime
+# (not included in repo for security reasons)
 
 # Set permissions
 RUN chmod +x ./services/whatsapp-bridge/whatsapp-bridge

@@ -27,6 +27,13 @@ mkdir -p /app/store /app/logs
 # Start WhatsApp Bridge in the background
 echo "📱 Starting WhatsApp Bridge..."
 cd /app/services/whatsapp-bridge
+
+# Check if this is first time setup (no session files)
+if [ ! -f "/app/store/whatsapp.db" ]; then
+    echo "🔐 First time setup - WhatsApp authentication required"
+    echo "📱 Please check Railway logs for QR code or authentication status"
+fi
+
 ./whatsapp-bridge > /app/logs/whatsapp-bridge.log 2>&1 &
 BRIDGE_PID=$!
 echo "✅ WhatsApp Bridge started (PID: $BRIDGE_PID)"
@@ -37,11 +44,11 @@ sleep 10
 
 # Check if bridge is healthy
 for i in {1..10}; do
-    if curl -f http://localhost:${PORT:-8080}/health >/dev/null 2>&1; then
-        echo "✅ WhatsApp Bridge is healthy"
+    if curl -f http://localhost:${PORT:-8080}/ >/dev/null 2>&1; then
+        echo "✅ WhatsApp Bridge is responding"
         break
     fi
-    echo "⏳ Waiting for bridge health check... ($i/10)"
+    echo "⏳ Waiting for bridge to respond... ($i/10)"
     sleep 5
 done
 
