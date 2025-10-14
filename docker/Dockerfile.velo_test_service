@@ -1,0 +1,46 @@
+# Velo Test - Velo Test Service Wrapper Dockerfile
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY services/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy service files
+COPY services/ ./services/
+COPY scripts/ ./scripts/
+
+# Create necessary directories
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Set environment variables
+ENV SERVICE_ID=velo_test_service
+ENV SERVICE_PORT=8082
+ENV PROJECT_NAME=Velo Test
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8082/health || exit 1
+
+# Expose port
+EXPOSE 8082
+
+# Run the Velo Test service
+CMD ["python3", "services/velo_test_service.py"]

@@ -1,0 +1,223 @@
+version: '3.8'
+
+# Velo Test - Self-Contained Docker Deployment
+# Complete microservices stack for Velo Test WhatsApp monitoring
+
+services:
+  # WhatsApp Bridge Service - Core messaging integration
+  whatsapp-bridge:
+    build:
+      context: ./services/whatsapp-bridge
+      dockerfile: ../../docker/Dockerfile.velo_test
+    container_name: velo-test-whatsapp-bridge
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./docker-data/whatsapp-sessions:/app/store
+      - ./docker-data/bridge-logs:/app/logs
+      - ./.env:/app/.env:ro
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - SERVICE_NAME=velo-test-whatsapp-bridge
+      - PROJECT_NAME=Velo Test
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID:-120363421664266245@g.us}
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GOOGLE_SHEETS_ID}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+    networks:
+      - velo-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.velo-test.service=whatsapp-bridge"
+      - "com.velo-test.description=WhatsApp Web integration service"
+      - "com.velo-test.port=8080"
+
+  # Drop Monitor Service - Real-time drop detection
+  drop-monitor:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.drop_monitor
+    container_name: velo-test-drop-monitor
+    restart: unless-stopped
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - ./services:/app/services:ro
+      - ./docker-data/monitor-logs:/app/logs
+      - ./.env:/app/.env:ro
+      - ./credentials.json:/app/credentials.json:ro
+      - ./docker-data/whatsapp-sessions:/app/store:ro
+    environment:
+      - SERVICE_ID=velo_test_drop_monitor
+      - SERVICE_NAME=Velo Test Drop Monitor
+      - PROJECT_NAME=Velo Test
+      - CHECK_INTERVAL=15
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - WHATSAPP_DB_PATH=/app/store/messages.db
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID:-120363421664266245@g.us}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+    networks:
+      - velo-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import psutil; psutil.processes()' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.velo-test.service=drop-monitor"
+      - "com.velo-test.description=Real-time drop number detection"
+      - "com.velo-test.interval=15s"
+
+  # QA Feedback Communicator - Automated feedback system
+  qa-feedback:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.qa_feedback
+    container_name: velo-test-qa-feedback
+    restart: unless-stopped
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - ./services:/app/services:ro
+      - ./docker-data/monitor-logs:/app/logs
+      - ./.env:/app/.env:ro
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - SERVICE_ID=velo_test_qa_feedback
+      - SERVICE_NAME=Velo Test QA Feedback
+      - PROJECT_NAME=Velo Test
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-x.ai/grok-2-1212:free}
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID:-120363421664266245@g.us}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+      - FEEDBACK_COOLDOWN=${FEEDBACK_COOLDOWN:-300}
+    networks:
+      - velo-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import psutil; psutil.processes()' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.velo-test.service=qa-feedback"
+      - "com.velo-test.description=Automated QA feedback communication"
+
+  # Done Message Detector - Resubmission handler
+  done-detector:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.done_detector
+    container_name: velo-test-done-detector
+    restart: unless-stopped
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - ./services:/app/services:ro
+      - ./docker-data/monitor-logs:/app/logs
+      - ./.env:/app/.env:ro
+      - ./credentials.json:/app/credentials.json:ro
+      - ./docker-data/whatsapp-sessions:/app/store:ro
+    environment:
+      - SERVICE_ID=velo_test_done_detector
+      - SERVICE_NAME=Velo Test Done Detector
+      - PROJECT_NAME=Velo Test
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - WHATSAPP_DB_PATH=/app/store/messages.db
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID:-120363421664266245@g.us}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+    networks:
+      - velo-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import psutil; psutil.processes()' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.velo-test.service=done-detector"
+      - "com.velo-test.description=Resubmission detection and handling"
+
+  # Velo Test Service Wrapper - Optional management service
+  velo-test-service:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.velo_test_service
+    container_name: velo-test-service
+    restart: unless-stopped
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./services:/app/services:ro
+      - ./docker-data/monitor-logs:/app/logs
+      - ./.env:/app/.env:ro
+    environment:
+      - SERVICE_ID=velo_test_service
+      - SERVICE_PORT=8082
+      - PROJECT_NAME=Velo Test
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG_MODE=${DEBUG_MODE:-false}
+    networks:
+      - velo-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.velo-test.service=velo-test-service"
+      - "com.velo-test.description=Velo Test management and monitoring"
+      - "com.velo-test.port=8082"
+
+# Networks
+networks:
+  velo-test-network:
+    driver: bridge
+    name: velo-test-network
+    labels:
+      - "com.velo-test.network=main"
+      - "com.velo-test.description=Velo Test microservices network"
+
+# Volumes (named for better Docker management)
+volumes:
+  whatsapp-sessions:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker-data/whatsapp-sessions
+  bridge-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker-data/bridge-logs
+  monitor-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker-data/monitor-logs
