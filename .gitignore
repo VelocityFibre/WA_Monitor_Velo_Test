@@ -104,3 +104,5 @@ services/whatsapp-bridge/store/messages.db
 store/
 **/store/
 
+
+# Allow pre-built binary for Railway deployment
