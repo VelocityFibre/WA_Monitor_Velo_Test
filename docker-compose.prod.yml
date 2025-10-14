@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+  whatsapp-bridge:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.whatsapp-bridge
+    container_name: wa-bridge
+    ports:
+      - "8080:8080"
+    volumes:
+      - whatsapp-sessions:/app/services/whatsapp-bridge/store
+      - ./logs:/app/logs
+    environment:
+      - PORT=8080
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - wa-monitor-net
+
+  drop-monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python-services
+    container_name: wa-drop-monitor
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - whatsapp-sessions:/app/services/whatsapp-bridge/store:ro
+      - ./logs:/app/logs
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - WHATSAPP_DB_PATH=/app/services/whatsapp-bridge/store/messages.db
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GSHEET_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID}
+      - LOG_LEVEL=INFO
+    command: ["python3", "services/realtime_drop_monitor.py"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sqlite3; sqlite3.connect('/app/services/whatsapp-bridge/store/messages.db').close(); print('OK')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks:
+      - wa-monitor-net
+
+  done-detector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python-services
+    container_name: wa-done-detector
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - whatsapp-sessions:/app/services/whatsapp-bridge/store:ro
+      - ./logs:/app/logs
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - WHATSAPP_DB_PATH=/app/services/whatsapp-bridge/store/messages.db
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GSHEET_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID}
+      - LOG_LEVEL=INFO
+    command: ["python3", "services/done_message_detector.py"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sqlite3; sqlite3.connect('/app/services/whatsapp-bridge/store/messages.db').close(); print('OK')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks:
+      - wa-monitor-net
+
+  qa-feedback:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.python-services
+    container_name: wa-qa-feedback
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - whatsapp-sessions:/app/services/whatsapp-bridge/store:ro
+      - ./logs:/app/logs
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - WHATSAPP_DB_PATH=/app/services/whatsapp-bridge/store/messages.db
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GSHEET_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LOG_LEVEL=INFO
+    command: ["python3", "services/qa_feedback_communicator.py"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sqlite3; sqlite3.connect('/app/services/whatsapp-bridge/store/messages.db').close(); print('OK')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks:
+      - wa-monitor-net
+
+volumes:
+  whatsapp-sessions:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/docker-data/whatsapp-sessions
+      o: bind
+
+networks:
+  wa-monitor-net:
+    driver: bridge
+
+# Health monitoring service (optional)
+  health-monitor:
+    image: prom/prometheus:latest
+    container_name: wa-health-monitor
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - wa-monitor-net
+    profiles:
+      - monitoring

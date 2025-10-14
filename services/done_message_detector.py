@@ -67,7 +67,7 @@ PROJECTS = {
 }
 
 # Messages database path
-MESSAGES_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'whatsapp-bridge', 'store', 'messages.db')
+MESSAGES_DB_PATH = os.getenv('WHATSAPP_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'whatsapp-bridge', 'store', 'messages.db'))
 
 # Done message patterns
 DONE_PATTERNS = [
@@ -350,6 +350,15 @@ def process_done_responses(hours_back: int = 24):
                 if mark_drop_resubmitted(drop_number, sheet_name):
                     total_marked_resubmitted += 1
                     logger.info(f"   ✅ Successfully marked {drop_number} as resubmitted")
+                    
+                    # Reset feedback tracking so drop can receive feedback again if marked incomplete
+                    try:
+                        from qa_feedback_tracker import FeedbackTracker
+                        tracker = FeedbackTracker('velo_test_feedback_tracker.json')
+                        tracker.reset_feedback_tracking(drop_number, project)
+                        logger.info(f"   🔄 Reset feedback tracking for {drop_number}")
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Could not reset feedback tracking: {e}")
 
                     # Send confirmation message to group
                     confirmation_msg = f"✅ **Resubmission Recorded**\n\nDrop {drop_number} has been marked as resubmitted and will be re-reviewed by the QA team."

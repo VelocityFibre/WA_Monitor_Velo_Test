@@ -54,7 +54,7 @@ PROJECTS = {
 LAWLEY_GROUP_JID = PROJECTS['Lawley']['group_jid']
 VELO_TEST_GROUP_JID = PROJECTS['Velo Test']['group_jid']
 
-MESSAGES_DB_PATH = os.getenv('WHATSAPP_DB_PATH', '../whatsapp-bridge/store/messages.db')
+MESSAGES_DB_PATH = os.getenv('WHATSAPP_DB_PATH', 'services/whatsapp-bridge/store/messages.db')
 NEON_DB_URL = "postgresql://neondb_owner:npg_RIgDxzo4St6d@ep-damp-credit-a857vku0-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require"
 DROP_PATTERN = r'DR\d+'
 

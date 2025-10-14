@@ -1,0 +1,97 @@
+version: '3.8'
+
+# Railway-optimized Docker Compose for Velo Test WhatsApp Monitor
+# Simplified for Railway's platform constraints
+
+services:
+  # WhatsApp Bridge Service - Core messaging integration
+  whatsapp-bridge:
+    build:
+      context: ./services/whatsapp-bridge
+      dockerfile: ../../docker/Dockerfile.velo_test
+    container_name: velo-whatsapp-bridge
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"  # Railway assigns PORT automatically
+    volumes:
+      - whatsapp-sessions:/app/store
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - SERVICE_NAME=velo-test-whatsapp-bridge
+      - PROJECT_NAME=Velo Test
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID}
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - LOG_LEVEL=INFO
+      - DEBUG_MODE=false
+      - PORT=${PORT:-8080}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-8080}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.velo-test.service=whatsapp-bridge"
+
+  # Drop Monitor Service - Real-time drop detection
+  drop-monitor:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.drop_monitor
+    container_name: velo-drop-monitor
+    restart: unless-stopped
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - whatsapp-sessions:/app/store:ro
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - SERVICE_ID=velo_test_drop_monitor
+      - SERVICE_NAME=Velo Test Drop Monitor
+      - PROJECT_NAME=Velo Test
+      - CHECK_INTERVAL=15
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - WHATSAPP_DB_PATH=/app/store/messages.db
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID}
+      - LOG_LEVEL=INFO
+    labels:
+      - "com.velo-test.service=drop-monitor"
+
+  # QA Feedback Communicator - Automated feedback system  
+  qa-feedback:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.qa_feedback
+    container_name: velo-qa-feedback
+    restart: unless-stopped
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - SERVICE_ID=velo_test_qa_feedback
+      - SERVICE_NAME=Velo Test QA Feedback
+      - PROJECT_NAME=Velo Test
+      - NEON_DB_URL=${NEON_DATABASE_URL}
+      - GSHEET_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=x.ai/grok-2-1212:free
+      - VELO_TEST_GROUP_JID=${VELO_TEST_GROUP_JID}
+      - LOG_LEVEL=INFO
+      - DEBUG_MODE=false
+      - FEEDBACK_COOLDOWN=300
+    labels:
+      - "com.velo-test.service=qa-feedback"
+
+# Volumes for persistent data
+volumes:
+  whatsapp-sessions:
+    driver: local
+    name: velo-whatsapp-sessions

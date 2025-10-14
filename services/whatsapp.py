@@ -5,7 +5,7 @@ from typing import Optional, List, Tuple
 import os.path
 import requests
 import json
-import audio
+# import audio  # Audio functionality not needed yet
 
 MESSAGES_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'whatsapp-bridge', 'store', 'messages.db')
 WHATSAPP_API_BASE_URL = os.getenv("WHATSAPP_API_URL", "http://localhost:8080/api")
@@ -740,10 +740,8 @@ def send_audio_message(recipient: str, media_path: str) -> Tuple[bool, str]:
             return False, f"Media file not found: {media_path}"
 
         if not media_path.endswith(".ogg"):
-            try:
-                media_path = audio.convert_to_opus_ogg_temp(media_path)
-            except Exception as e:
-                return False, f"Error converting file to opus ogg. You likely need to install ffmpeg: {str(e)}"
+            # Audio conversion disabled - audio module not set up yet
+            return False, f"Audio file must be in .ogg format. Audio conversion not available yet."
         
         url = f"{WHATSAPP_API_BASE_URL}/send"
         payload = {

@@ -61,7 +61,7 @@ const NEON_DB_URL = "postgresql://neondb_owner:npg_RIgDxzo4St6d@ep-damp-credit-a
 
 // Google Sheets configuration
 const GOOGLE_SHEETS_ID = "1TYxDLyCqDHr0Imb5j7X4uJhxccgJTO0KrDVAD0Ja0Dk"
-const GOOGLE_CREDENTIALS_PATH = "/app/credentials.json"
+const GOOGLE_CREDENTIALS_PATH = "./credentials.json"
 
 // Project-specific Google Sheets tab mapping
 var PROJECT_SHEETS_TABS = map[string]string{
@@ -481,14 +481,22 @@ func extractMediaInfo(msg *waProto.Message) (mediaType string, filename string, 
 
 // Handle regular incoming messages with media support
 func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *events.Message, logger waLog.Logger) {
+	// VELO TEST DEPLOYMENT: Only process messages from Velo Test group
+	chatJID := msg.Info.Chat.String()
+	veloTestJID := "120363421664266245@g.us"
+	
+	if chatJID != veloTestJID {
+		// Silently ignore messages from other chats/groups for privacy
+		return
+	}
+	
 	// Log immediate debug info
 	fmt.Printf("🎯 handleMessage called! Chat: %s, Sender: %s, IsFromMe: %v\n",
 		msg.Info.Chat.String(), msg.Info.Sender.String(), msg.Info.IsFromMe)
 	logger.Infof("🎯 handleMessage called! Chat: %s, Sender: %s, IsFromMe: %v",
 		msg.Info.Chat.String(), msg.Info.Sender.String(), msg.Info.IsFromMe)
 
-	// Save message to database
-	chatJID := msg.Info.Chat.String()
+	// Save message to database  
 	sender := msg.Info.Sender.User
 
 	// Get appropriate chat name (pass nil for conversation since we don't have one for regular messages)
@@ -943,13 +951,16 @@ func main() {
 		case *events.Connected:
 			logger.Infof("Connected to WhatsApp")
 
-		case *events.LoggedOut:
-			logger.Warnf("Device logged out, please scan QR code to log in again")
+	case *events.LoggedOut:
+		logger.Warnf("Device logged out, please scan QR code to log in again")
 
-		
-		default:
-			// Log unknown events for debugging
-			logger.Infof("Received unhandled event type: %T", v)
+	case *events.Receipt:
+		// Handle receipt events - these indicate message status changes
+		handleReceiptEvent(client, messageStore, v, logger)
+	
+	default:
+		// Log unknown events for debugging
+		logger.Infof("Received unhandled event type: %T", v)
 		}
 	})
 
@@ -1105,7 +1116,7 @@ func GetChatName(client *whatsmeow.Client, messageStore *MessageStore, jid types
 	return name
 }
 
-// Create QA photo review record in Neon database
+// Create or update QA photo review record in Neon database
 func createQAPhotoReview(dropNumber, projectName, userName string, reviewDate time.Time) error {
 	db, err := sql.Open("postgres", NEON_DB_URL)
 	if err != nil {
@@ -1113,42 +1124,68 @@ func createQAPhotoReview(dropNumber, projectName, userName string, reviewDate ti
 	}
 	defer db.Close()
 
-	// Check if QA review already exists
-	var existingID int
+	// Check if QA review already exists for this drop and date
+	var existingID string
 	err = db.QueryRow("SELECT id FROM qa_photo_reviews WHERE drop_number = $1 AND review_date = $2", 
 		dropNumber, reviewDate.Format("2006-01-02")).Scan(&existingID)
+	
 	if err == nil {
-		// Already exists, skip
+		// Record exists - this is a resubmission, update it
+		fmt.Printf("🔄 Drop %s already has QA review for %s - updating as resubmission\n", 
+			dropNumber, reviewDate.Format("2006-01-02"))
+		
+		// Reset completion status and add resubmission note
+		_, updateErr := db.Exec(`
+			UPDATE qa_photo_reviews 
+			SET 
+				incomplete = FALSE,
+				feedback_sent = NULL,
+				comment = COALESCE(comment, '') || $1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+		`, fmt.Sprintf("\n--- RESUBMITTED %s ---\nPhotos updated by %s. QA can continue review.\n", 
+			time.Now().Format("2006-01-02 15:04:05"), userName), existingID)
+		
+		if updateErr != nil {
+			return fmt.Errorf("failed to update QA photo review for resubmission: %v", updateErr)
+		}
+		
+		fmt.Printf("✅ Updated QA photo review for resubmission: %s\n", dropNumber)
 		return nil
 	}
+	
+	// Record doesn't exist - create new one
+	if err == sql.ErrNoRows {
+		_, err = db.Exec(`
+			INSERT INTO qa_photo_reviews (
+				drop_number, review_date, user_name, project,
+				step_01_property_frontage, step_02_location_before_install,
+				step_03_outside_cable_span, step_04_home_entry_outside,
+				step_05_home_entry_inside, step_06_fibre_entry_to_ont,
+				step_07_patched_labelled_drop, step_08_work_area_completion,
+				step_09_ont_barcode_scan, step_10_ups_serial_number,
+				step_11_powermeter_reading, step_12_powermeter_at_ont,
+				step_13_active_broadband_light, step_14_customer_signature,
+				outstanding_photos_loaded_to_1map, comment
+			) VALUES (
+				$1, $2, $3, $4,
+				FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
+				FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
+				$5
+			)
+		`, dropNumber, reviewDate.Format("2006-01-02"), userName, projectName,
+			fmt.Sprintf("Auto-created from WhatsApp on %s", time.Now().Format("2006-01-02 15:04:05")))
 
-	// Create new QA photo review record
-	_, err = db.Exec(`
-		INSERT INTO qa_photo_reviews (
-			drop_number, review_date, user_name, project,
-			step_01_property_frontage, step_02_location_before_install,
-			step_03_outside_cable_span, step_04_home_entry_outside,
-			step_05_home_entry_inside, step_06_fibre_entry_to_ont,
-			step_07_patched_labelled_drop, step_08_work_area_completion,
-			step_09_ont_barcode_scan, step_10_ups_serial_number,
-			step_11_powermeter_reading, step_12_powermeter_at_ont,
-			step_13_active_broadband_light, step_14_customer_signature,
-			outstanding_photos_loaded_to_1map, comment
-		) VALUES (
-			$1, $2, $3, $4,
-			FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-			FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
-			$5
-		)
-	`, dropNumber, reviewDate.Format("2006-01-02"), userName, projectName,
-		fmt.Sprintf("Auto-created from WhatsApp on %s", time.Now().Format("2006-01-02 15:04:05")))
+		if err != nil {
+			return fmt.Errorf("failed to create QA photo review: %v", err)
+		}
 
-	if err != nil {
-		return fmt.Errorf("failed to create QA photo review: %v", err)
+		fmt.Printf("✅ Created QA photo review for %s (user: %s, project: %s)\n", dropNumber, userName, projectName)
+		return nil
 	}
-
-	fmt.Printf("✅ Created QA photo review for %s (user: %s, project: %s)\n", dropNumber, userName, projectName)
-	return nil
+	
+	// Some other database error
+	return fmt.Errorf("failed to check existing QA review: %v", err)
 }
 
 // Find first empty row starting from row 17
@@ -1175,8 +1212,18 @@ func findFirstEmptyRow(srv *sheets.Service, tabName string, ctx context.Context)
 		}
 	}
 
-	// If all rows 17-100 are full, return row 101
-	return startRow + 84, nil
+	// If we reach here, all returned rows have data
+	// The next empty row is startRow + len(resp.Values)
+	nextEmptyRow := startRow + len(resp.Values)
+	
+	// Make sure we don't exceed reasonable bounds
+	if nextEmptyRow > 200 {
+		fmt.Printf("⚠️  Warning: Next empty row is %d, which seems very high. Using row 101 instead.\n", nextEmptyRow)
+		return 101, nil
+	}
+	
+	fmt.Printf("📍 Next empty row determined: %d (after %d filled rows)\n", nextEmptyRow, len(resp.Values))
+	return nextEmptyRow, nil
 }
 
 // Write drop number to Google Sheets
@@ -1232,15 +1279,15 @@ func writeToGoogleSheets(dropNumber, projectName, userName string, reviewDate ti
 		rowData = []interface{}{
 			today,        // A: Date
 			dropNumber,   // B: Drop Number
-			false, false, false, false, false, false, false, // C-I: Steps 1-7 (checkboxes)
-			false, false, false, false, false, false, false, // J-P: Steps 8-14 (checkboxes)
+			"FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", // C-I: Steps 1-7 (checkboxes)
+			"FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", // J-P: Steps 8-14 (checkboxes)
 			0,            // Q: Completed Photos
 			14,           // R: Outstanding Photos
 			userName,     // S: Contractor Name
 			"Processing", // T: Status
 			"",           // U: QA Notes
 			"",           // V: Comments
-			false,        // W: Resubmitted
+			"FALSE",      // W: Resubmitted
 			"",           // X: Additional Notes
 		}
 		sheetRange = fmt.Sprintf("%s!A%d:X%d", tabName, targetRow, targetRow)
@@ -1264,12 +1311,270 @@ func writeToGoogleSheets(dropNumber, projectName, userName string, reviewDate ti
 		return fmt.Errorf("failed to write to Google Sheets (tab: %s, row: %d): %v", tabName, targetRow, err)
 	}
 
+	// Apply checkbox data validation to the checkbox columns (C-P and W)
+	err = applyCheckboxValidation(srv, tabName, targetRow, ctx)
+	if err != nil {
+		fmt.Printf("⚠️  Failed to apply checkbox validation (data still written): %v\n", err)
+		// Don't return error - data is written, validation is optional
+	}
+
 	// Only print success message if everything worked
-	fmt.Printf("✅ Added %s to '%s' Google Sheets tab\n", dropNumber, tabName)
+	fmt.Printf("✅ Added %s to '%s' Google Sheets tab with checkboxes\n", dropNumber, tabName)
 	return nil
 }
 
-// Process drop numbers from message content
+// Copy checkbox formatting from existing rows to ensure proper checkbox display
+func applyCheckboxValidation(srv *sheets.Service, tabName string, targetRow int, ctx context.Context) error {
+	fmt.Printf("📝 Copying checkbox format to row %d from template row...\n", targetRow)
+	
+	// Copy checkbox data validation from row 17 (which has working checkboxes)
+	// to the new row to ensure proper checkbox display
+	
+	// Source: Row 17 columns C-P (checkbox columns)
+	sourceRange := &sheets.GridRange{
+		SheetId:          1654167750, // Velo Test sheet ID
+		StartRowIndex:    16, // Row 17 (0-based)
+		EndRowIndex:      17, // Row 17 (exclusive end)
+		StartColumnIndex: 2,  // Column C (0-based)
+		EndColumnIndex:   16, // Column P (exclusive end)
+	}
+	
+	// Destination: New row columns C-P
+	destinationRange := &sheets.GridRange{
+		SheetId:          1654167750,
+		StartRowIndex:    int64(targetRow - 1), // Convert to 0-based
+		EndRowIndex:      int64(targetRow),     // Exclusive end
+		StartColumnIndex: 2,                    // Column C
+		EndColumnIndex:   16,                   // Column P
+	}
+	
+	// Source: Row 17 column W (Resubmitted checkbox)
+	sourceRangeW := &sheets.GridRange{
+		SheetId:          1654167750,
+		StartRowIndex:    16, // Row 17
+		EndRowIndex:      17,
+		StartColumnIndex: 22, // Column W (0-based)
+		EndColumnIndex:   23,
+	}
+	
+	// Destination: New row column W
+	destinationRangeW := &sheets.GridRange{
+		SheetId:          1654167750,
+		StartRowIndex:    int64(targetRow - 1), // Convert to 0-based
+		EndRowIndex:      int64(targetRow),
+		StartColumnIndex: 22, // Column W
+		EndColumnIndex:   23,
+	}
+	
+	// Create batch request to copy formatting for both ranges
+	batchRequest := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				CopyPaste: &sheets.CopyPasteRequest{
+					Source:      sourceRange,
+					Destination: destinationRange,
+					PasteType:   "PASTE_DATA_VALIDATION", // Only copy validation rules
+				},
+			},
+			{
+				CopyPaste: &sheets.CopyPasteRequest{
+					Source:      sourceRangeW,
+					Destination: destinationRangeW,
+					PasteType:   "PASTE_DATA_VALIDATION",
+				},
+			},
+		},
+	}
+	
+	_, err := srv.Spreadsheets.BatchUpdate(GOOGLE_SHEETS_ID, batchRequest).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to copy checkbox formatting: %v", err)
+	}
+	
+	fmt.Printf("✅ Successfully copied checkbox formatting to row %d\n", targetRow)
+	return nil
+}
+
+// Handle receipt events for message status updates
+func handleReceiptEvent(client *whatsmeow.Client, messageStore *MessageStore, receipt *events.Receipt, logger waLog.Logger) {
+	// Receipt events indicate message delivery/read status changes
+	// We can use these to detect when messages are processed
+	fmt.Printf("📬 Receipt event: Chat=%s, MessageIDs=%v, Timestamp=%v\n", 
+		receipt.Chat.String(), receipt.MessageIDs, receipt.Timestamp)
+	
+	// For resubmissions, we're mainly interested in messages that contain drop numbers
+	// The Receipt event alone doesn't give us message content, but we can cross-reference
+	// with stored messages to check if any recent messages had 'done' keywords
+	
+	// Check recent messages from this chat for completion patterns
+	checkRecentCompletions(client, messageStore, receipt.Chat.String(), receipt.Timestamp, logger)
+}
+
+// Check recent messages for completion patterns and update sheets accordingly
+func checkRecentCompletions(client *whatsmeow.Client, messageStore *MessageStore, chatJID string, timestamp time.Time, logger waLog.Logger) {
+	// Only process Velo Test group
+	veloTestJID := "120363421664266245@g.us"
+	if chatJID != veloTestJID {
+		return
+	}
+	
+	// Get recent messages from this chat (last 10 messages in past hour)
+	since := timestamp.Add(-1 * time.Hour)
+	rows, err := messageStore.db.Query(`
+		SELECT content, sender, timestamp FROM messages 
+		WHERE chat_jid = ? AND timestamp > ? 
+		ORDER BY timestamp DESC LIMIT 10
+	`, chatJID, since)
+	
+	if err != nil {
+		logger.Warnf("Failed to query recent messages: %v", err)
+		return
+	}
+	defer rows.Close()
+	
+	// Look for completion patterns in recent messages
+	for rows.Next() {
+		var content, sender string
+		var msgTime time.Time
+		
+		if err := rows.Scan(&content, &sender, &msgTime); err != nil {
+			continue
+		}
+		
+		// Check if this message indicates completion/resubmission
+		if isCompletionMessage(content) {
+			fmt.Printf("🔔 Found completion message: '%s' from %s\n", content, sender)
+			processCompletionMessage(content, chatJID, sender, msgTime, logger)
+		}
+	}
+}
+
+// Check if a message indicates completion or resubmission
+func isCompletionMessage(content string) bool {
+	content = strings.ToLower(strings.TrimSpace(content))
+	
+	// Look for completion indicators combined with drop numbers
+	hasDropNumber := dropPattern.MatchString(strings.ToUpper(content))
+	if !hasDropNumber {
+		return false
+	}
+	
+	// Check for completion keywords
+	completionWords := []string{"done", "complete", "finished", "ready", "submitted", "resubmitted"}
+	for _, word := range completionWords {
+		if strings.Contains(content, word) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// Process completion message and update Google Sheets
+func processCompletionMessage(content, chatJID, sender string, timestamp time.Time, logger waLog.Logger) {
+	// Extract drop numbers from the completion message
+	dropNumbers := dropPattern.FindAllString(strings.ToUpper(content), -1)
+	if len(dropNumbers) == 0 {
+		return
+	}
+	
+	projectName := getProjectNameByJID(chatJID)
+	if projectName == "" {
+		return
+	}
+	
+	// For each drop number, update Google Sheets to show resubmission
+	for _, dropNumber := range dropNumbers {
+		dropNumber = strings.ToUpper(dropNumber)
+		fmt.Printf("🔄 Processing completion for %s from %s\n", dropNumber, sender)
+		
+		// Update Google Sheets to show resubmission status
+		err := updateSheetsForResubmission(dropNumber, projectName, logger)
+		if err != nil {
+			logger.Errorf("❌ Failed to update sheets for %s resubmission: %v", dropNumber, err)
+		} else {
+			logger.Infof("✅ Updated sheets for %s resubmission", dropNumber)
+		}
+	}
+}
+
+// Update Google Sheets to show resubmission status
+func updateSheetsForResubmission(dropNumber, projectName string, logger waLog.Logger) error {
+	// Check if we have a sheets tab configured for this project
+	tabName, exists := PROJECT_SHEETS_TABS[projectName]
+	if !exists {
+		return fmt.Errorf("no Google Sheets tab configured for project: %s", projectName)
+	}
+	
+	// Check if credentials file exists
+	if _, err := os.Stat(GOOGLE_CREDENTIALS_PATH); os.IsNotExist(err) {
+		return fmt.Errorf("Google Sheets credentials not found at %s", GOOGLE_CREDENTIALS_PATH)
+	}
+	
+	// Read service account credentials
+	creds, err := os.ReadFile(GOOGLE_CREDENTIALS_PATH)
+	if err != nil {
+		return fmt.Errorf("failed to read credentials file: %v", err)
+	}
+	
+	// Create Google Sheets service with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	config, err := google.CredentialsFromJSON(ctx, creds, sheets.SpreadsheetsScope)
+	if err != nil {
+		return fmt.Errorf("failed to parse credentials: %v", err)
+	}
+	
+	srv, err := sheets.NewService(ctx, option.WithCredentials(config))
+	if err != nil {
+		return fmt.Errorf("failed to create sheets service: %v", err)
+	}
+	
+	// Get all data to find the drop number row
+	result, err := srv.Spreadsheets.Values.Get(
+		GOOGLE_SHEETS_ID, fmt.Sprintf("%s!A:X", tabName)).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to read sheet data: %v", err)
+	}
+	
+	values := result.Values
+	targetRow := -1
+	
+	// Find the row with this drop number (Column B)
+	for rowIndex, row := range values {
+		if len(row) > 1 && row[1] != nil {
+			if strings.TrimSpace(fmt.Sprintf("%v", row[1])) == dropNumber {
+				targetRow = rowIndex + 1 // Convert to 1-based
+				break
+			}
+		}
+	}
+	
+	if targetRow == -1 {
+		return fmt.Errorf("drop number %s not found in Google Sheets", dropNumber)
+	}
+	
+	// Update Column W (Resubmitted) to TRUE
+	resubmittedRange := fmt.Sprintf("%s!W%d", tabName, targetRow)
+	vr := &sheets.ValueRange{
+		Values: [][]interface{}{{"TRUE"}},
+	}
+	
+	_, err = srv.Spreadsheets.Values.Update(GOOGLE_SHEETS_ID, resubmittedRange, vr).
+		ValueInputOption("USER_ENTERED").
+		Context(ctx).
+		Do()
+	
+	if err != nil {
+		return fmt.Errorf("failed to update resubmission status: %v", err)
+	}
+	
+	fmt.Printf("📊 ✅ Updated Google Sheets: %s Column W=TRUE (Resubmitted)\n", dropNumber)
+	return nil
+}
+
+// Process drop numbers from message content (enhanced version)
 func processDropNumbers(content, chatJID, sender string, timestamp time.Time, logger waLog.Logger) {
 	// Check if message is from a tracked project group
 	projectName := getProjectNameByJID(chatJID)
@@ -1283,7 +1588,16 @@ func processDropNumbers(content, chatJID, sender string, timestamp time.Time, lo
 		return // No drop numbers found
 	}
 
-	// Process each drop number
+	// Check if this is a completion/resubmission message
+	isCompletion := isCompletionMessage(content)
+	if isCompletion {
+		fmt.Printf("🎯 Completion message detected: '%s' from %s\n", content, sender)
+		// Handle completion directly
+		processCompletionMessage(content, chatJID, sender, timestamp, logger)
+		return
+	}
+
+	// Process each drop number (regular new drop processing)
 	for _, dropNumber := range dropNumbers {
 		dropNumber = strings.ToUpper(dropNumber)
 
@@ -1300,7 +1614,7 @@ func processDropNumbers(content, chatJID, sender string, timestamp time.Time, lo
 			continue // Skip to next drop number if database write fails
 		}
 
-		// Write to Google Sheets
+		// For new drops, write to Google Sheets
 		err = writeToGoogleSheets(dropNumber, projectName, userName, timestamp)
 		if err != nil {
 			logger.Errorf("❌ FAILED to write %s to Google Sheets: %v", dropNumber, err)

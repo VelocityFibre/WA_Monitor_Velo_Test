@@ -1,0 +1,16 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+startCommand = "./start-services.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[variables]
+# Railway will use environment variables set in dashboard
+# These are defaults that can be overridden
+PORT = "8080"
+LOG_LEVEL = "INFO"
+DEBUG_MODE = "false"

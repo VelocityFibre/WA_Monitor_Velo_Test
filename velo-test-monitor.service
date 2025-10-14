@@ -1,0 +1,38 @@
+[Unit]
+Description=Velo Test WhatsApp Monitor Services
+After=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+User=louisdup
+Group=louisdup
+WorkingDirectory=/home/louisdup/VF/deployments/WA_monitor _Velo_Test
+ExecStart=/home/louisdup/VF/deployments/WA_monitor _Velo_Test/production_manager.sh start
+ExecStop=/home/louisdup/VF/deployments/WA_monitor _Velo_Test/production_manager.sh stop
+ExecReload=/home/louisdup/VF/deployments/WA_monitor _Velo_Test/production_manager.sh restart
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=velo-test-monitor
+KillMode=mixed
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Environment variables
+Environment=HOME=/home/louisdup
+Environment=USER=louisdup
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/louisdup/go/bin
+
+# Security and resource limits
+MemoryLimit=512M
+CPUQuota=50%
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/home/louisdup/VF/deployments/WA_monitor _Velo_Test
+
+[Install]
+WantedBy=multi-user.target

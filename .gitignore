@@ -45,3 +45,62 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Credentials and sensitive files
+credentials.json
+*.json.backup
+*.compromised.*
+service-account-*.json
+
+# State files
+monitor_state.json
+*.pid
+
+# Railway deployment
+railway-minimal/
+digitalocean-deployment.tar.gz
+
+# Logs (but keep directory structure)
+*.log
+logs/*.log
+!logs/.gitkeep
+
+# Virtual environments  
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# SENSITIVE FILES - DO NOT COMMIT
+credentials.json
+*.json.backup
+*.json.compromised*
+sheets-api-*.json
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+
+# WhatsApp session files (contain auth tokens)
+services/whatsapp-bridge/store/whatsapp.db
+services/whatsapp-bridge/store/messages.db
+store/
+**/store/
+
