@@ -1,5 +1,5 @@
 # Multi-stage Docker build for Railway deployment
-FROM golang:1.19-alpine AS go-builder
+FROM golang:1.21-alpine AS go-builder
 
 # Build WhatsApp Bridge
 WORKDIR /app/whatsapp-bridge
