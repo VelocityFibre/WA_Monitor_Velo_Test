@@ -10,28 +10,23 @@ echo "=============================================================="
 
 # Set up environment variables
 export WHATSAPP_DB_PATH="./store/messages.db"
-# Note: Railway sets GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json  
-# We need to update it to point to our actual credentials file location
-export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
-# Ensure Google Sheets ID is available for Drop Monitor (should already be set by Railway)
+# Note: Railway sets GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json by default
+# Since we can't write to /app, we'll override it to point to our actual file location
+# We'll set this after creating the credentials file
 export GOOGLE_SHEETS_ID="${GOOGLE_SHEETS_ID:-1TYxDLyCqDHr0Imb5j7X4uJhxccgJTO0KrDVAD0Ja0Dk}"
 
 # Create credentials.json from environment variable
 if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
     echo "🔐 Creating credentials.json from environment variable..."
     
-    # Create credentials at both locations to ensure compatibility
-    echo "$GOOGLE_CREDENTIALS_JSON" > ./credentials.json
+    # Create credentials file in current directory (this always works)
+    CREDENTIALS_FILE="$(pwd)/credentials.json"
+    echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
     
-    # Also create at Railway's expected location if /app directory exists
-    if [ -w /app ] || mkdir -p /app 2>/dev/null; then
-        echo "$GOOGLE_CREDENTIALS_JSON" > /app/credentials.json
-        echo "✅ Credentials file created at /app/credentials.json"
-    else
-        echo "✅ Credentials file created at $(pwd)/credentials.json"
-        echo "🔍 Note: Cannot write to /app, using current directory"
-    fi
+    # Override Railway's GOOGLE_APPLICATION_CREDENTIALS to point to our actual file
+    export GOOGLE_APPLICATION_CREDENTIALS="$CREDENTIALS_FILE"
     
+    echo "✅ Credentials file created at $CREDENTIALS_FILE"
     echo "🔍 Environment variables set:"
     echo "  GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
     echo "  GOOGLE_SHEETS_ID=$GOOGLE_SHEETS_ID"
