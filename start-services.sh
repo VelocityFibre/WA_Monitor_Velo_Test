@@ -8,8 +8,9 @@ set -e
 echo "🚀 Starting Velo Test WhatsApp Monitor Services on Railway..."
 echo "=============================================================="
 
-# Set up environment variables
-export WHATSAPP_DB_PATH="./store/messages.db"
+# Set up environment variables  
+# WhatsApp Bridge creates database in services/whatsapp-bridge/store/
+export WHATSAPP_DB_PATH="$(pwd)/services/whatsapp-bridge/store/messages.db"
 # Note: Railway sets GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json by default
 # Since we can't write to /app, we'll override it to point to our actual file location
 # We'll set this after creating the credentials file
@@ -30,6 +31,16 @@ if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
     echo "🔍 Environment variables set:"
     echo "  GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
     echo "  GOOGLE_SHEETS_ID=$GOOGLE_SHEETS_ID"
+    echo "  WHATSAPP_DB_PATH=$WHATSAPP_DB_PATH"
+    
+    # Verify database file exists
+    if [ -f "$WHATSAPP_DB_PATH" ]; then
+        echo "✅ WhatsApp database found at $WHATSAPP_DB_PATH"
+    else
+        echo "⚠️  WhatsApp database NOT found at $WHATSAPP_DB_PATH"
+        echo "🔍 Available database files:"
+        find ./services/whatsapp-bridge/store/ -name "*.db" 2>/dev/null || echo "   No .db files found"
+    fi
 else
     echo "⚠️  Warning: GOOGLE_CREDENTIALS_JSON environment variable not set"
 fi
