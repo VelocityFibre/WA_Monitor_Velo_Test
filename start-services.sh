@@ -31,22 +31,46 @@ if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
     # Create credentials file in current directory (this always works)
     CREDENTIALS_FILE="$(pwd)/credentials.json"
     
+    # Debug: Show first few characters to understand format
+    echo "🔍 First 50 chars of credentials: ${GOOGLE_CREDENTIALS_JSON:0:50}..."
+    
     # Handle different JSON formats that Railway might use
     if [[ "$GOOGLE_CREDENTIALS_JSON" == "{"* ]]; then
         # Already valid JSON format
+        echo "✅ Detected raw JSON format"
         echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
+    elif [[ "$GOOGLE_CREDENTIALS_JSON" == *"\\n"* ]] || [[ "$GOOGLE_CREDENTIALS_JSON" == *"\\"* ]]; then
+        # Escaped JSON - decode escape sequences
+        echo "🔧 Detected escaped JSON, decoding..."
+        printf '%b' "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
     else
-        # Might be escaped/encoded, try to decode
-        printf '%s\n' "$GOOGLE_CREDENTIALS_JSON" | sed 's/\\n/\n/g' | sed 's/\\"/"/g' > "$CREDENTIALS_FILE"
+        # Try as-is first
+        echo "🔧 Trying as-is format..."
+        echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
     fi
     
     # Validate that we created valid JSON
-    if ! python3 -m json.tool "$CREDENTIALS_FILE" >/dev/null 2>&1; then
-        echo "⚠️  Invalid JSON in credentials file, trying alternative parsing..."
-        # Try base64 decode if it might be encoded
-        if command -v base64 >/dev/null 2>&1; then
-            echo "$GOOGLE_CREDENTIALS_JSON" | base64 -d > "$CREDENTIALS_FILE" 2>/dev/null || \
-            echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
+    if python3 -m json.tool "$CREDENTIALS_FILE" >/dev/null 2>&1; then
+        echo "✅ Valid JSON credentials file created"
+    else
+        echo "❌ Invalid JSON, trying alternative approaches..."
+        
+        # Try removing outer quotes if present
+        if [[ "$GOOGLE_CREDENTIALS_JSON" == '"'*'"' ]]; then
+            echo "🔧 Removing outer quotes and trying again..."
+            CLEANED_JSON="${GOOGLE_CREDENTIALS_JSON:1:-1}"
+            printf '%b' "$CLEANED_JSON" > "$CREDENTIALS_FILE"
+        fi
+        
+        # Final validation
+        if ! python3 -m json.tool "$CREDENTIALS_FILE" >/dev/null 2>&1; then
+            echo "❌ CRITICAL: Cannot create valid credentials file"
+            echo "🔍 Raw environment variable content:"
+            echo "$GOOGLE_CREDENTIALS_JSON" | head -c 200
+            echo ""
+            echo "⚠️  Google Sheets integration will not work until credentials are fixed"
+        else
+            echo "✅ Successfully created valid JSON after cleanup"
         fi
     fi
     
