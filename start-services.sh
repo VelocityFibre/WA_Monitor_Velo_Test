@@ -8,25 +8,12 @@ set -e
 echo "🚀 Starting Velo Test WhatsApp Monitor Services on Railway..."
 echo "==============================================================="
 
-# Compile WhatsApp Bridge if binary doesn't exist
+# Verify WhatsApp Bridge binary exists (built by Dockerfile)
 if [ ! -f "services/whatsapp-bridge/whatsapp-bridge" ]; then
-    echo "🔨 Compiling WhatsApp Bridge binary..."
-    cd services/whatsapp-bridge
-    if command -v go >/dev/null 2>&1; then
-        go build -o whatsapp-bridge main.go
-        if [ $? -eq 0 ]; then
-            echo "✅ WhatsApp Bridge compiled successfully"
-        else
-            echo "❌ Failed to compile WhatsApp Bridge"
-            exit 1
-        fi
-    else
-        echo "❌ Go compiler not found - cannot build WhatsApp Bridge"
-        exit 1
-    fi
-    cd ../../
+    echo "❌ WhatsApp Bridge binary not found - Docker build may have failed"
+    exit 1
 else
-    echo "✅ WhatsApp Bridge binary already exists"
+    echo "✅ WhatsApp Bridge binary ready"
 fi
 
 # Set up environment variables  

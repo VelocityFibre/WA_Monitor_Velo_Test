@@ -1,11 +1,18 @@
-# Simple Railway deployment with pre-built binaries
+# Railway deployment with Go compilation
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install system dependencies including Go
 RUN apt-get update && apt-get install -y \
     curl \
     postgresql-client \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Go
+RUN wget -O go.tar.gz https://go.dev/dl/go1.21.5.linux-amd64.tar.gz \
+    && tar -C /usr/local -xzf go.tar.gz \
+    && rm go.tar.gz
+ENV PATH=$PATH:/usr/local/go/bin
 
 WORKDIR /app
 
@@ -22,9 +29,11 @@ RUN pip install --no-cache-dir \
 # Copy Python services
 COPY services/ ./services/
 
-# Copy pre-built WhatsApp bridge binary
-COPY services/whatsapp-bridge/whatsapp-bridge ./services/whatsapp-bridge/
-RUN chmod +x ./services/whatsapp-bridge/whatsapp-bridge
+# Build WhatsApp bridge binary from source
+WORKDIR /app/services/whatsapp-bridge
+RUN go mod download && go build -o whatsapp-bridge main.go
+RUN chmod +x whatsapp-bridge
+WORKDIR /app
 
 # Create directories for persistent data
 RUN mkdir -p /app/store /app/logs
