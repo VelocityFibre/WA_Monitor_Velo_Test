@@ -6,7 +6,28 @@
 set -e
 
 echo "🚀 Starting Velo Test WhatsApp Monitor Services on Railway..."
-echo "=============================================================="
+echo "==============================================================="
+
+# Compile WhatsApp Bridge if binary doesn't exist
+if [ ! -f "services/whatsapp-bridge/whatsapp-bridge" ]; then
+    echo "🔨 Compiling WhatsApp Bridge binary..."
+    cd services/whatsapp-bridge
+    if command -v go >/dev/null 2>&1; then
+        go build -o whatsapp-bridge main.go
+        if [ $? -eq 0 ]; then
+            echo "✅ WhatsApp Bridge compiled successfully"
+        else
+            echo "❌ Failed to compile WhatsApp Bridge"
+            exit 1
+        fi
+    else
+        echo "❌ Go compiler not found - cannot build WhatsApp Bridge"
+        exit 1
+    fi
+    cd ../../
+else
+    echo "✅ WhatsApp Bridge binary already exists"
+fi
 
 # Set up environment variables  
 # WhatsApp Bridge creates database in services/whatsapp-bridge/store/
