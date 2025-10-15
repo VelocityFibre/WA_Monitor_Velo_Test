@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.23 (required by go.mod)
-RUN wget -O go.tar.gz https://go.dev/dl/go1.23.0.linux-amd64.tar.gz \
+# Install Go 1.24 (required by dependencies)
+RUN wget -O go.tar.gz https://go.dev/dl/go1.24.0.linux-amd64.tar.gz \
     && tar -C /usr/local -xzf go.tar.gz \
     && rm go.tar.gz
 ENV PATH=$PATH:/usr/local/go/bin

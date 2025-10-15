@@ -1,12 +1,12 @@
 module whatsapp-client
 
-go 1.23
+go 1.24
 
 require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mdp/qrterminal v1.0.1
-	go.mau.fi/whatsmeow v0.0.0-20240927110414-7b2c99b6f4c1
+	go.mau.fi/whatsmeow v0.0.0-20241001180739-c42835f47cad
 	golang.org/x/oauth2 v0.24.0
 	google.golang.org/api v0.203.0
 	google.golang.org/protobuf v1.36.9
