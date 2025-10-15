@@ -54,8 +54,8 @@ PROJECTS = {
 LAWLEY_GROUP_JID = PROJECTS['Lawley']['group_jid']
 VELO_TEST_GROUP_JID = PROJECTS['Velo Test']['group_jid']
 
-MESSAGES_DB_PATH = os.getenv('WHATSAPP_DB_PATH', 'services/whatsapp-bridge/store/messages.db')
-NEON_DB_URL = "postgresql://neondb_owner:npg_RIgDxzo4St6d@ep-damp-credit-a857vku0-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require"
+MESSAGES_DB_PATH = os.getenv('WHATSAPP_DB_PATH', '/app/store/messages.db')
+NEON_DB_URL = os.getenv('NEON_DATABASE_URL', 'postgresql://neondb_owner:npg_RIgDxzo4St6d@ep-damp-credit-a857vku0-pooler.eastus2.azure.neon.tech/neondb?sslmode=require&channel_binding=require')
 DROP_PATTERN = r'DR\d+'
 
 # Emergency kill switch - any user in monitored groups can trigger
@@ -63,7 +63,7 @@ KILL_COMMANDS = ["KILL", "!KILL", "kill all services", "emergency stop"]
 
 # Google Sheets configuration
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-GSHEET_ID = os.getenv("GSHEET_ID")
+GSHEET_ID = os.getenv("GOOGLE_SHEETS_ID")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 # WhatsApp group to sheet mapping - Velo Test and Mohadin write to Google Sheets
@@ -114,15 +114,11 @@ def emergency_stop_all_services():
 def send_kill_confirmation(group_jid: str, sender: str):
     """Send confirmation message that kill command was received."""
     try:
-        import whatsapp
-        message = f"🛑 KILL COMMAND RECEIVED\n\nAll monitoring services stopped by: {sender}\nTime: {datetime.now().strftime('%H:%M:%S')}\n\nSystem is now OFFLINE."
-        success, response = whatsapp.send_message(group_jid, message)
-        if success:
-            logger.info("✅ Kill confirmation sent")
-        else:
-            logger.warning(f"⚠️ Could not send kill confirmation: {response}")
+        # For now, just log the kill command - WhatsApp messaging requires REST API integration
+        logger.critical(f"🛑 KILL COMMAND RECEIVED from {sender} at {datetime.now().strftime('%H:%M:%S')}")
+        logger.info("✅ Kill command logged (WhatsApp response disabled)")
     except Exception as e:
-        logger.error(f"Error sending kill confirmation: {e}")
+        logger.error(f"Error logging kill confirmation: {e}")
 
 def check_for_kill_command(messages: List[Dict]) -> bool:
     """Check if any message contains a kill command."""
