@@ -105,4 +105,27 @@ store/
 **/store/
 
 
+# Go compiled binaries (too large for git)
+services/whatsapp-bridge/whatsapp-bridge*
+services/whatsapp-bridge/debug_sheets
+services/whatsapp-bridge/add_*
+services/whatsapp-bridge/check_*
+services/whatsapp-bridge/clean_*
+services/whatsapp-bridge/clear_*
+services/whatsapp-bridge/final_*
+services/whatsapp-bridge/fix_*
+services/whatsapp-bridge/get_*
+services/whatsapp-bridge/test_*
+services/whatsapp-bridge/update_*
+services/whatsapp-bridge/verify_*
+
+# Large session files
+*.b64
+whatsapp-session-package.*
+
+# Database files (can be large)
+*.db
+docker-data/
+railway-minimal/
+
 # Allow pre-built binary for Railway deployment
