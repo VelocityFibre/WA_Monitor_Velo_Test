@@ -21,6 +21,59 @@ else
     echo "⚠️  Warning: GOOGLE_CREDENTIALS_JSON environment variable not set"
 fi
 
+# Restore WhatsApp session files if provided
+# Check for chunked session data (WHATSAPP_SESSION_DATA_1, _2, etc.)
+if [ -n "$WHATSAPP_SESSION_DATA_1" ]; then
+    echo "🔄 Restoring WhatsApp session from chunked environment variables..."
+    
+    # Combine all chunks
+    SESSION_DATA=""
+    CHUNK_NUM=1
+    
+    while true; do
+        CHUNK_VAR="WHATSAPP_SESSION_DATA_$CHUNK_NUM"
+        CHUNK_VALUE=$(eval echo \$$CHUNK_VAR)
+        
+        if [ -n "$CHUNK_VALUE" ]; then
+            echo "📦 Found chunk $CHUNK_NUM"
+            SESSION_DATA="$SESSION_DATA$CHUNK_VALUE"
+            ((CHUNK_NUM++))
+        else
+            break
+        fi
+    done
+    
+    if [ -n "$SESSION_DATA" ]; then
+        echo "✅ Combined $((CHUNK_NUM-1)) chunks, extracting session data..."
+        echo "$SESSION_DATA" | base64 -d | tar -xzf - -C /app/
+        
+        # Move session files to correct location
+        if [ -d "/app/services/whatsapp-bridge/store" ]; then
+            cp -r /app/services/whatsapp-bridge/store/* /app/store/ 2>/dev/null || true
+            echo "✅ WhatsApp session files restored"
+            echo "🔐 Session files available - should skip QR code authentication"
+        else
+            echo "⚠️  Session extraction failed"
+        fi
+    else
+        echo "⚠️  Failed to combine session chunks"
+    fi
+elif [ -n "$WHATSAPP_SESSION_DATA" ]; then
+    echo "🔄 Restoring WhatsApp session from single environment variable..."
+    echo "$WHATSAPP_SESSION_DATA" | base64 -d | tar -xzf - -C /app/
+    
+    # Move session files to correct location
+    if [ -d "/app/services/whatsapp-bridge/store" ]; then
+        cp -r /app/services/whatsapp-bridge/store/* /app/store/ 2>/dev/null || true
+        echo "✅ WhatsApp session files restored"
+        echo "🔐 Session files available - should skip QR code authentication"
+    else
+        echo "⚠️  Session extraction failed"
+    fi
+else
+    echo "⚠️  No WhatsApp session data provided - will need QR code authentication"
+fi
+
 # Create required directories
 mkdir -p /app/store /app/logs
 
