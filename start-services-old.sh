@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Railway Service Startup Script for Velo Test WhatsApp Monitor
-# Simplified version using persistent volumes instead of environment variables
+# Starts all services in the correct order with proper environment setup
 
 set -e
 
@@ -21,26 +21,61 @@ else
     echo "⚠️  Warning: GOOGLE_CREDENTIALS_JSON environment variable not set"
 fi
 
-# WhatsApp Session Management - Persistent Volume Approach
-echo "📱 Checking WhatsApp session storage..."
+# Restore WhatsApp session files if provided
+# Check for chunked session data (WHATSAPP_SESSION_DATA_1, _2, etc.)
+if [ -n "$WHATSAPP_SESSION_DATA_1" ]; then
+    echo "🔄 Restoring WhatsApp session from chunked environment variables..."
+    
+    # Combine all chunks
+    SESSION_DATA=""
+    CHUNK_NUM=1
+    
+    while true; do
+        CHUNK_VAR="WHATSAPP_SESSION_DATA_$CHUNK_NUM"
+        CHUNK_VALUE=$(eval echo \$$CHUNK_VAR)
+        
+        if [ -n "$CHUNK_VALUE" ]; then
+            echo "📦 Found chunk $CHUNK_NUM"
+            SESSION_DATA="$SESSION_DATA$CHUNK_VALUE"
+            ((CHUNK_NUM++))
+        else
+            break
+        fi
+    done
+    
+    if [ -n "$SESSION_DATA" ]; then
+        echo "✅ Combined $((CHUNK_NUM-1)) chunks, extracting session data..."
+        echo "$SESSION_DATA" | base64 -d | tar -xzf - -C /app/
+        
+        # Move session files to correct location
+        if [ -d "/app/services/whatsapp-bridge/store" ]; then
+            cp -r /app/services/whatsapp-bridge/store/* /app/store/ 2>/dev/null || true
+            echo "✅ WhatsApp session files restored"
+            echo "🔐 Session files available - should skip QR code authentication"
+        else
+            echo "⚠️  Session extraction failed"
+        fi
+    else
+        echo "⚠️  Failed to combine session chunks"
+    fi
+elif [ -n "$WHATSAPP_SESSION_DATA" ]; then
+    echo "🔄 Restoring WhatsApp session from single environment variable..."
+    echo "$WHATSAPP_SESSION_DATA" | base64 -d | tar -xzf - -C /app/
+    
+    # Move session files to correct location
+    if [ -d "/app/services/whatsapp-bridge/store" ]; then
+        cp -r /app/services/whatsapp-bridge/store/* /app/store/ 2>/dev/null || true
+        echo "✅ WhatsApp session files restored"
+        echo "🔐 Session files available - should skip QR code authentication"
+    else
+        echo "⚠️  Session extraction failed"
+    fi
+else
+    echo "⚠️  No WhatsApp session data provided - will need QR code authentication"
+fi
 
 # Create required directories
 mkdir -p /app/store /app/logs
-
-# Check if session already exists in persistent volume
-if [ -d "/app/store" ] && [ "$(ls -A /app/store/*.db 2>/dev/null)" ]; then
-    echo "✅ Found existing WhatsApp session in persistent storage"
-    echo "🔄 WhatsApp will connect automatically (no QR code needed)"
-    echo "📂 Session files:"
-    ls -la /app/store/ | grep -E '\.(db|json)$' || echo "   No session files found"
-else
-    echo "ℹ️  No existing WhatsApp session found"
-    echo "📱 WhatsApp will prompt for QR code on first connection"
-    echo "💾 Session will be automatically saved to persistent storage for future deployments"
-fi
-
-echo "🏠 Session storage directory: /app/store"
-echo "💡 After QR code scan, this session will persist across all Railway deployments"
 
 # Start WhatsApp Bridge in the background
 echo "📱 Starting WhatsApp Bridge..."
@@ -77,8 +112,6 @@ if [ -f "/app/logs/whatsapp-bridge.log" ]; then
         
         echo ""; echo "=" | tr '=' '=' | head -c 60; echo
         echo "📱 SCAN THE QR CODE ABOVE WITH YOUR WHATSAPP APP!"
-        echo "💾 Once connected, your session will be saved automatically"
-        echo "🚀 Future deployments will connect automatically (no QR needed)"
     else
         echo "⚠️  QR code not found in logs yet. It may appear later."
         echo "🔍 First 50 lines of bridge log:"
@@ -122,9 +155,6 @@ echo "📊 Service PIDs:"
 echo "  - WhatsApp Bridge: $BRIDGE_PID"
 echo "  - Drop Monitor: $MONITOR_PID"  
 echo "  - QA Feedback: $QA_PID"
-echo ""
-echo "💡 IMPORTANT: After QR code scan, WhatsApp session is saved to persistent volume"
-echo "🚀 Future Railway deployments will automatically connect (no QR needed)"
 echo ""
 echo "📋 Monitoring services..."
 
