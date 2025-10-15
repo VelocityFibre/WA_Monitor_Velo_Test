@@ -130,5 +130,42 @@ But the environment variable is not being passed to the Python process!
 
 ---
 
-**Last Updated:** 15 Oct 2025, 13:51 UTC  
-**Status:** ROOT CAUSE IDENTIFIED - Database path mismatch
+## 🚀 Railway Performance Fix (13:59 UTC)
+
+**SECONDARY ISSUE IDENTIFIED:** 4+ minute snapshot times due to large files in git
+- **Removed:** 33MB+ Go compiled binaries causing slow snapshots
+- **Removed:** 2.9MB base64 session file
+- **Added:** Comprehensive .gitignore for future prevention
+- **Result:** Should dramatically speed up Railway deployments
+
+---
+
+## 🐋 DOCKERFILE FIX (14:42 UTC)
+
+**DEPLOYMENT FAILURE ROOT CAUSE:** Dockerfile trying to COPY missing whatsapp-bridge binary
+- **Error:** `"/services/whatsapp-bridge/whatsapp-bridge": not found`
+- **Fix:** Modified Dockerfile to build Go binary during Docker build
+- **Commit:** `e7c6033` - Should fix all deployment failures
+
+---
+
+## ⚙️ GO VERSION MISMATCH FIX (14:57 UTC)
+
+**NEW BUILD ERROR:** Go version compatibility issue
+```
+go: downloading go1.23 (linux/amd64) 
+go: download go1.23 for linux/amd64: toolchain not available
+```
+
+**PROBLEM:** 
+- Dockerfile installed Go 1.21.5
+- `go.mod` requires Go 1.23
+- Go 1.21.5 couldn't download Go 1.23 toolchain
+
+**FIX:** Updated Dockerfile to install Go 1.23.0
+- **Commit:** `087271c`
+
+---
+
+**Last Updated:** 15 Oct 2025, 14:57 UTC  
+**Status:** Go version fixed - Build should now succeed

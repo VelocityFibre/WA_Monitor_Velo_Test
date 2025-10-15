@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     postgresql-client \
     wget \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go 1.23 (required by go.mod)
