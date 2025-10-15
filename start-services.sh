@@ -31,12 +31,43 @@ cd /app/services/whatsapp-bridge
 # Check if this is first time setup (no session files)
 if [ ! -f "/app/store/whatsapp.db" ]; then
     echo "🔐 First time setup - WhatsApp authentication required"
-    echo "📱 Please check Railway logs for QR code or authentication status"
+    echo "📱 QR CODE WILL APPEAR BELOW IN THESE LOGS:"
+    echo "================== QR CODE OUTPUT START =================="
 fi
 
-./whatsapp-bridge > /app/logs/whatsapp-bridge.log 2>&1 &
+# Start WhatsApp bridge with output to both logs AND console (so QR appears in Railway logs)
+./whatsapp-bridge 2>&1 | tee /app/logs/whatsapp-bridge.log &
 BRIDGE_PID=$!
 echo "✅ WhatsApp Bridge started (PID: $BRIDGE_PID)"
+
+# Give WhatsApp bridge time to show QR code
+echo "⏳ Waiting for WhatsApp Bridge to show QR code..."
+sleep 15
+
+# Check if QR code appeared in logs and display it
+echo "================== CHECKING FOR QR CODE =================="
+if [ -f "/app/logs/whatsapp-bridge.log" ]; then
+    echo "🔍 Checking WhatsApp bridge logs for QR code..."
+    
+    # Look for QR code patterns in the log file
+    if grep -q "QR code" /app/logs/whatsapp-bridge.log; then
+        echo "📱 QR CODE FOUND IN LOGS - DISPLAYING NOW:"
+        echo "=" | tr '=' '=' | head -c 60; echo
+        
+        # Extract and display the QR code section
+        sed -n '/QR code/,/Connected\|Failed\|Error/p' /app/logs/whatsapp-bridge.log
+        
+        echo ""; echo "=" | tr '=' '=' | head -c 60; echo
+        echo "📱 SCAN THE QR CODE ABOVE WITH YOUR WHATSAPP APP!"
+    else
+        echo "⚠️  QR code not found in logs yet. It may appear later."
+        echo "🔍 First 50 lines of bridge log:"
+        head -50 /app/logs/whatsapp-bridge.log || echo "Log file empty"
+    fi
+else
+    echo "⚠️  WhatsApp bridge log file not created yet"
+fi
+echo "================== QR CODE CHECK COMPLETE =================="
 
 # Wait for WhatsApp Bridge to be ready
 echo "⏳ Waiting for WhatsApp Bridge to initialize..."
