@@ -30,7 +30,25 @@ if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
     
     # Create credentials file in current directory (this always works)
     CREDENTIALS_FILE="$(pwd)/credentials.json"
-    echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
+    
+    # Handle different JSON formats that Railway might use
+    if [[ "$GOOGLE_CREDENTIALS_JSON" == "{"* ]]; then
+        # Already valid JSON format
+        echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
+    else
+        # Might be escaped/encoded, try to decode
+        printf '%s\n' "$GOOGLE_CREDENTIALS_JSON" | sed 's/\\n/\n/g' | sed 's/\\"/"/g' > "$CREDENTIALS_FILE"
+    fi
+    
+    # Validate that we created valid JSON
+    if ! python3 -m json.tool "$CREDENTIALS_FILE" >/dev/null 2>&1; then
+        echo "⚠️  Invalid JSON in credentials file, trying alternative parsing..."
+        # Try base64 decode if it might be encoded
+        if command -v base64 >/dev/null 2>&1; then
+            echo "$GOOGLE_CREDENTIALS_JSON" | base64 -d > "$CREDENTIALS_FILE" 2>/dev/null || \
+            echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
+        fi
+    fi
     
     # Override Railway's GOOGLE_APPLICATION_CREDENTIALS to point to our actual file
     export GOOGLE_APPLICATION_CREDENTIALS="$CREDENTIALS_FILE"
