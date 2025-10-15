@@ -6,7 +6,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mdp/qrterminal v1.0.1
-	go.mau.fi/whatsmeow v0.0.0-20241001180739-c42835f47cad
+	go.mau.fi/whatsmeow v0.0.0-20240821142341-d8c7d6807893
 	golang.org/x/oauth2 v0.24.0
 	google.golang.org/api v0.203.0
 	google.golang.org/protobuf v1.36.9

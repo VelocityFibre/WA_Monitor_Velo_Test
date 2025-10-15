@@ -95,22 +95,32 @@ else
     echo "⚠️  Warning: GOOGLE_CREDENTIALS_JSON environment variable not set"
 fi
 
-# WhatsApp Session Management - Persistent Volume Approach
+# WhatsApp Session Management - Database Persistence Approach
 echo "📱 Checking WhatsApp session storage..."
 
 # Create required directories
 mkdir -p ./store ./logs
 
-# Check if session already exists in persistent volume
-if [ -d "./store" ] && [ "$(ls -A ./store/*.db 2>/dev/null)" ]; then
-    echo "✅ Found existing WhatsApp session in persistent storage"
-    echo "🔄 WhatsApp will connect automatically (no QR code needed)"
-    echo "📂 Session files:"
-    ls -la ./store/ | grep -E '\.(db|json)$' || echo "   No session files found"
+# Initialize session persistence system
+echo "🔧 Initializing session persistence system..."
+python3 services/session_persistence.py init
+
+# Try to restore previous session from database backup
+echo "📂 Attempting to restore WhatsApp session from backup..."
+if python3 services/session_persistence.py restore; then
+    # Check if we successfully restored session files
+    if [ -f "./store/whatsapp.db" ] || [ -f "./services/whatsapp-bridge/session.json" ] || ls ./store/*.db >/dev/null 2>&1; then
+        echo "✅ WhatsApp session restored from backup"
+        echo "🔄 WhatsApp should connect automatically (no QR code needed)"
+        echo "📂 Restored session files:"
+        ls -la ./store/ | grep -E '\.(db|json|key|crt)$' || echo "   Database files only"
+    else
+        echo "ℹ️  No previous session backup found"
+        echo "📱 WhatsApp will prompt for QR code on first connection"
+    fi
 else
-    echo "ℹ️  No existing WhatsApp session found"
+    echo "⚠️  Session restore failed, starting fresh"
     echo "📱 WhatsApp will prompt for QR code on first connection"
-    echo "💾 Session will be automatically saved to persistent storage for future deployments"
 fi
 
 echo "🏠 Session storage directory: ./store"
@@ -193,12 +203,19 @@ python3 services/smart_qa_feedback.py --interval 120 > ./logs/qa-feedback.log 2>
 QA_PID=$!
 echo "✅ QA Feedback Service started (PID: $QA_PID)"
 
+# Start Session Persistence Monitor (backup every 5 minutes)
+echo "💾 Starting Session Persistence Monitor..."
+python3 services/session_persistence.py monitor > ./logs/session-persistence.log 2>&1 &
+PERSIST_PID=$!
+echo "✅ Session Persistence Monitor started (PID: $PERSIST_PID)"
+
 echo ""
 echo "🎉 All services started successfully!"
 echo "📊 Service PIDs:"
 echo "  - WhatsApp Bridge: $BRIDGE_PID"
 echo "  - Drop Monitor: $MONITOR_PID"  
 echo "  - QA Feedback: $QA_PID"
+echo "  - Session Persistence: $PERSIST_PID"
 echo ""
 echo "💡 IMPORTANT: After QR code scan, WhatsApp session is saved to persistent volume"
 echo "🚀 Future Railway deployments will automatically connect (no QR needed)"
@@ -218,8 +235,12 @@ while true; do
         cd ./services/whatsapp-bridge
         ./whatsapp-bridge > ../../logs/whatsapp-bridge.log 2>&1 &
         BRIDGE_PID=$!
-        echo "🔄 WhatsApp Bridge restarted (PID: $BRIDGE_PID)"
+echo "🔄 WhatsApp Bridge restarted (PID: $BRIDGE_PID)"
         cd ../../
+        
+        # Backup session after restart
+        echo "💾 Backing up WhatsApp session after restart..."
+        python3 services/session_persistence.py backup >/dev/null 2>&1 || echo "⚠️  Session backup failed"
     fi
     
     # Check Drop Monitor  
@@ -236,6 +257,14 @@ while true; do
         python3 services/smart_qa_feedback.py --interval 120 > ./logs/qa-feedback.log 2>&1 &
         QA_PID=$!
         echo "🔄 QA Feedback restarted (PID: $QA_PID)"
+    fi
+    
+    # Check Session Persistence Monitor
+    if ! is_running $PERSIST_PID; then
+        echo "❌ Session Persistence Monitor crashed, restarting..."
+        python3 services/session_persistence.py monitor > ./logs/session-persistence.log 2>&1 &
+        PERSIST_PID=$!
+        echo "🔄 Session Persistence Monitor restarted (PID: $PERSIST_PID)"
     fi
     
     # Wait before next check

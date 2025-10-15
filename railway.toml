@@ -6,13 +6,9 @@ startCommand = "./start-services.sh"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
-[volumes]
-# Persistent storage for WhatsApp session data
-# This prevents having to re-authenticate on every deployment
-store = "/app/store"
-logs = "/app/logs"
-
 [variables]
+# Note: WhatsApp session persistence now handled via PostgreSQL database
+# instead of Railway volumes due to volume configuration limitations
 # Railway will use environment variables set in dashboard
 # These are defaults that can be overridden
 PORT = "8080"
