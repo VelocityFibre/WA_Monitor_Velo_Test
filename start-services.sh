@@ -46,6 +46,9 @@ echo "💡 After QR code scan, this session will persist across all Railway depl
 echo "📱 Starting WhatsApp Bridge..."
 cd /app/services/whatsapp-bridge
 
+# Create symlink so WhatsApp bridge can find credentials at relative path
+ln -sf /app/credentials.json ./credentials.json
+
 # Check if this is first time setup (no session files)
 if [ ! -f "/app/store/whatsapp.db" ]; then
     echo "🔐 First time setup - WhatsApp authentication required"
