@@ -28,7 +28,7 @@ class SessionPersistenceManager:
         self.session_dir.mkdir(exist_ok=True)
         self.whatsapp_bridge_dir.mkdir(exist_ok=True)
         
-    def get_db_connection(self) -> Optional[psycopg2.connection]:
+    def get_db_connection(self):
         """Get PostgreSQL database connection"""
         if not self.db_url:
             print("❌ DATABASE_URL not found - cannot persist sessions")
