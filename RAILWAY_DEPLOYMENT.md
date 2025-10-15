@@ -111,18 +111,68 @@ volumes:
     name: velo-whatsapp-sessions
 ```
 
-## Deployment Status Monitoring
+## 🔄 Redeployment Workflow (GitHub Integration)
 
-### Check Deployment Status
+### Preferred Method: GitHub Integration
+Railway automatically deploys when you push to GitHub. This avoids file size limits and is more reliable:
+
 ```bash
+# 1. Make your code changes locally
+# 2. Stage and commit changes
+git add start-services.sh  # or other changed files
+git commit -m "Your deployment message"
+
+# 3. Push to GitHub (Railway auto-deploys)
+git push
+
+# Alternative if upstream not set:
+git push --set-upstream origin master
+```
+
+### Alternative Method: Railway CLI Direct Upload
+⚠️ **Use only for small changes** (Railway has file size limits):
+```bash
+railway up
+# or
+railway redeploy  # redeploys latest version
+```
+
+### WhatsApp Session Management
+
+**Problem**: Railway has a 32,768 character limit per environment variable, but WhatsApp session data can be ~3MB.
+
+**Solution**: Automated session chunking and restoration:
+
+1. **Upload session data in chunks**:
+   ```bash
+   # Use the automated upload script
+   python3 upload_to_railway_v2.py
+   # This splits your session into 94 chunks of ~32KB each
+   ```
+
+2. **Automatic restoration**: The modified `start-services.sh` automatically:
+   - Finds all `WHATSAPP_SESSION_DATA_*` variables
+   - Combines them in the correct order
+   - Decodes and extracts to restore your WhatsApp session
+   - No manual QR code scanning needed!
+
+### Deployment Status Monitoring
+
+```bash
+# View recent deployments
+railway deployment list
+
 # View deployment logs
-railway logs
+railway logs --deployment
 
 # Check service status
 railway status
 
 # View environment variables
 railway variables
+
+# View variables in JSON format
+railway variables --json
 ```
 
 ### Access Your Application
@@ -239,3 +289,58 @@ railway logs -f
 - **DigitalOcean**: Better for enterprise, high-traffic, full control needs
 
 **Recommendation**: Start with Railway, migrate to DigitalOcean if you need more control or lower costs at scale.
+
+---
+
+## 🚀 Quick Reference: Deploy Changes to Railway
+
+### Standard Workflow (Recommended)
+```bash
+# 1. Make changes to your code
+# 2. Commit and push to GitHub
+git add .
+git commit -m "Your change description"
+git push
+
+# 3. Railway auto-deploys from GitHub
+# 4. Monitor in Railway dashboard or:
+railway logs --deployment
+```
+
+### WhatsApp Session Upload (One-time Setup)
+```bash
+# If you need to upload new WhatsApp session data:
+python3 upload_to_railway_v2.py
+# This handles the 32KB variable limit automatically
+```
+
+### Troubleshooting Commands
+```bash
+# Check deployment status
+railway deployment list
+
+# View specific deployment logs
+railway logs [DEPLOYMENT_ID]
+
+# Check all environment variables
+railway variables --json | jq 'keys | length'  # Count variables
+railway variables --json | jq 'keys' | grep WHATSAPP  # Find WhatsApp vars
+
+# Manual redeploy (if GitHub integration fails)
+railway redeploy
+```
+
+### Emergency Session Recovery
+```bash
+# If WhatsApp session is lost, you have 3 options:
+
+# Option 1: Re-upload existing session
+python3 upload_to_railway_v2.py
+
+# Option 2: Scan QR code (remove session variables first)
+for i in {1..94}; do railway variables --set "WHATSAPP_SESSION_DATA_${i}="; done
+
+# Option 3: Use backup session file
+cp backup-whatsapp-session-package.b64 whatsapp-session-package.b64
+python3 upload_to_railway_v2.py
+```
