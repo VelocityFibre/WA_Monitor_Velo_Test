@@ -19,8 +19,19 @@ export GOOGLE_SHEETS_ID="${GOOGLE_SHEETS_ID:-1TYxDLyCqDHr0Imb5j7X4uJhxccgJTO0KrD
 # Create credentials.json from environment variable
 if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
     echo "🔐 Creating credentials.json from environment variable..."
+    
+    # Create credentials at both locations to ensure compatibility
     echo "$GOOGLE_CREDENTIALS_JSON" > ./credentials.json
-    echo "✅ Credentials file created at $(pwd)/credentials.json"
+    
+    # Also create at Railway's expected location if /app directory exists
+    if [ -w /app ] || mkdir -p /app 2>/dev/null; then
+        echo "$GOOGLE_CREDENTIALS_JSON" > /app/credentials.json
+        echo "✅ Credentials file created at /app/credentials.json"
+    else
+        echo "✅ Credentials file created at $(pwd)/credentials.json"
+        echo "🔍 Note: Cannot write to /app, using current directory"
+    fi
+    
     echo "🔍 Environment variables set:"
     echo "  GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
     echo "  GOOGLE_SHEETS_ID=$GOOGLE_SHEETS_ID"
