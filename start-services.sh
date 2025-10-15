@@ -10,13 +10,20 @@ echo "=============================================================="
 
 # Set up environment variables
 export WHATSAPP_DB_PATH="./store/messages.db"
-export GOOGLE_APPLICATION_CREDENTIALS="./credentials.json"
+# Note: Railway sets GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json  
+# We need to update it to point to our actual credentials file location
+export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
+# Ensure Google Sheets ID is available for Drop Monitor (should already be set by Railway)
+export GOOGLE_SHEETS_ID="${GOOGLE_SHEETS_ID:-1TYxDLyCqDHr0Imb5j7X4uJhxccgJTO0KrDVAD0Ja0Dk}"
 
 # Create credentials.json from environment variable
 if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
     echo "🔐 Creating credentials.json from environment variable..."
     echo "$GOOGLE_CREDENTIALS_JSON" > ./credentials.json
-    echo "✅ Credentials file created"
+    echo "✅ Credentials file created at $(pwd)/credentials.json"
+    echo "🔍 Environment variables set:"
+    echo "  GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
+    echo "  GOOGLE_SHEETS_ID=$GOOGLE_SHEETS_ID"
 else
     echo "⚠️  Warning: GOOGLE_CREDENTIALS_JSON environment variable not set"
 fi
