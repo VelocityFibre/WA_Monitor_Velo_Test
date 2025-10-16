@@ -7,6 +7,9 @@ restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
 [variables]
+# Required environment variables
+WHATSAPP_PHONE_NUMBER = "+27640412391"
+
 # Note: WhatsApp session persistence now handled via PostgreSQL database
 # instead of Railway volumes due to volume configuration limitations
 # Railway will use environment variables set in dashboard

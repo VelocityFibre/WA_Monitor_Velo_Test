@@ -496,3 +496,5 @@ export LOG_LEVEL=DEBUG
 **🎉 This is your complete operational guide for managing the Velo Test project. All scripts and commands are designed to be run from the `projects/velo_test/` directory.**
 
 *Last Updated: $(date +%Y-%m-%d)*
+
+https://github.com/VelocityFibre/WA_Monitor_Velo_Test
