@@ -194,11 +194,18 @@ class SessionPersistenceManager:
     def monitor_and_backup(self, interval_seconds: int = 300):
         """Continuously monitor and backup session files"""
         print(f"🔄 Starting session monitoring (backup every {interval_seconds}s)")
-        
+        backup_count = 0
+
         while True:
             try:
                 time.sleep(interval_seconds)
-                print("🔄 Performing periodic session backup...")
+                backup_count += 1
+                # Only log every 6th backup (every 30 minutes) to reduce log spam
+                if backup_count % 6 == 0:
+                    print(f"🔄 Session backup #{backup_count} completed")
+                else:
+                    # Silent backup for routine operations
+                    pass
                 self.backup_session_files()
             except KeyboardInterrupt:
                 print("⏹️  Session monitoring stopped")
