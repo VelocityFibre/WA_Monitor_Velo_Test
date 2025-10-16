@@ -198,11 +198,24 @@ def get_sheets_service():
     """Get Google Sheets service connection."""
     if not GOOGLE_AVAILABLE:
         return None
-        
+
     try:
-        credentials = Credentials.from_service_account_file(
-            GOOGLE_APPLICATION_CREDENTIALS, scopes=SCOPES
-        )
+        # Try as file path first
+        try:
+            credentials = Credentials.from_service_account_file(
+                GOOGLE_APPLICATION_CREDENTIALS, scopes=SCOPES
+            )
+        except (FileNotFoundError, OSError):
+            # If file doesn't exist, try as JSON string
+            import json
+            try:
+                credentials_info = json.loads(GOOGLE_APPLICATION_CREDENTIALS)
+                credentials = Credentials.from_service_account_info(
+                    credentials_info, scopes=SCOPES
+                )
+            except json.JSONDecodeError as je:
+                raise Exception(f"Invalid JSON in credentials: {je}")
+
         return build("sheets", "v4", credentials=credentials, cache_discovery=False)
     except Exception as e:
         print(f"Failed to create Google Sheets service: {e}")
