@@ -970,30 +970,56 @@ func main() {
 	// Connect to WhatsApp
 	if client.Store.ID == nil {
 		// No ID stored, this is a new client, need to pair with phone
-		qrChan, _ := client.GetQRChannel(context.Background())
+		// Check if WHATSAPP_PHONE_NUMBER environment variable is set
+		phoneNumber := os.Getenv("WHATSAPP_PHONE_NUMBER")
+		if phoneNumber == "" {
+			phoneNumber = "+27640412391" // Default to Louis's number
+		}
+		
+		fmt.Printf("📱 Using phone number pairing for: %s\n", phoneNumber)
+		logger.Infof("Starting phone number pairing for: %s", phoneNumber)
+		
+		// Connect to WhatsApp first
 		err = client.Connect()
 		if err != nil {
 			logger.Errorf("Failed to connect: %v", err)
 			return
 		}
-
-		// Print QR code for pairing with phone
-		for evt := range qrChan {
-			if evt.Event == "code" {
-				fmt.Println("\nScan this QR code with your WhatsApp app:")
-				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
-			} else if evt.Event == "success" {
-				connected <- true
-				break
+		
+		// Request pairing code
+		code, err := client.PairPhone(phoneNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+		if err != nil {
+			logger.Errorf("Failed to request pairing code: %v", err)
+			// Fallback to QR code if phone pairing fails
+			fmt.Println("⚠️  Phone pairing failed, falling back to QR code...")
+			
+			qrChan, _ := client.GetQRChannel(context.Background())
+			for evt := range qrChan {
+				if evt.Event == "code" {
+					fmt.Println("\nScan this QR code with your WhatsApp app:")
+					qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+				} else if evt.Event == "success" {
+					connected <- true
+					break
+				}
 			}
+			return
 		}
-
-		// Wait for connection
+		
+		fmt.Printf("\n🔑 PAIRING CODE: %s\n\n", code)
+		fmt.Println("📱 Enter this code in WhatsApp:")
+		fmt.Println("   1. Open WhatsApp on your phone (+27640412391)")
+		fmt.Println("   2. Tap Settings → Linked Devices → Link a Device")
+		fmt.Println("   3. Tap 'Link with phone number instead'")
+		fmt.Printf("   4. Enter this code: %s\n\n", code)
+		fmt.Println("⏳ Waiting for you to enter the code...")
+		
+		// Wait for connection success
 		select {
 		case <-connected:
-			fmt.Println("\nSuccessfully connected and authenticated!")
-		case <-time.After(3 * time.Minute):
-			logger.Errorf("Timeout waiting for QR code scan")
+			fmt.Println("✅ Successfully connected and authenticated!")
+		case <-time.After(5 * time.Minute):
+			logger.Errorf("Timeout waiting for phone pairing")
 			return
 		}
 	} else {
