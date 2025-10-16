@@ -96,11 +96,24 @@ def get_incomplete_qa_reviews(hours_back: int = 24) -> List[Dict]:
         if GSHEET_ID and GOOGLE_APPLICATION_CREDENTIALS:
             logger.info("📊 Reading QA reviews from Google Sheets (primary source)")
             
-            # Get Google Sheets service
-            credentials = Credentials.from_service_account_file(
-                GOOGLE_APPLICATION_CREDENTIALS, 
-                scopes=["https://www.googleapis.com/auth/spreadsheets"]
-            )
+            # Get Google Sheets service - handle both file path and JSON string
+            try:
+                credentials = Credentials.from_service_account_file(
+                    GOOGLE_APPLICATION_CREDENTIALS,
+                    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+                )
+            except (FileNotFoundError, OSError):
+                # If file doesn't exist, try as JSON string
+                import json
+                try:
+                    credentials_info = json.loads(GOOGLE_APPLICATION_CREDENTIALS)
+                    credentials = Credentials.from_service_account_info(
+                        credentials_info,
+                        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+                    )
+                except json.JSONDecodeError as je:
+                    raise Exception(f"Invalid JSON in credentials: {je}")
+
             service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
             
             # Get sheet data from multiple sheets

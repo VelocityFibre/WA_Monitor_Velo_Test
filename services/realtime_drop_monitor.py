@@ -666,12 +666,11 @@ def monitor_and_sync(check_interval: int = 30, dry_run: bool = False):
     """Main monitoring loop."""
     global running, monitor_start_time
     
-    logger.info("🚀 Starting Real-time Drop Number Monitor...")
+    logger.info("🚀 Starting Velo Test Drop Number Monitor...")
     logger.info(f"{'📋 DRY RUN MODE' if dry_run else '💾 LIVE MODE'}")
     logger.info(f"⏰ Check interval: {check_interval} seconds")
-    logger.info(f"👀 Monitoring groups:")
-    for project_name, config in PROJECTS.items():
-        logger.info(f"   • {project_name}: {config['group_jid']} ({config['group_description']})")
+    logger.info("🎯 FILTERED TO VELO TEST GROUP ONLY:")
+    logger.info(f"   • Velo Test: {VELO_TEST_GROUP_JID} ({PROJECTS['Velo Test']['group_description']})")
     logger.info("=" * 70)
     
     # Load persistent state
@@ -681,7 +680,7 @@ def monitor_and_sync(check_interval: int = 30, dry_run: bool = False):
     while running:
         try:
             # Get new messages since last check for all projects
-            project_messages = get_latest_messages_from_sqlite(last_check_time)
+            project_messages = get_latest_messages_from_sqlite(last_check_time, project_filter="Velo Test")
             
             # Flatten all messages for processing
             all_new_messages = []
