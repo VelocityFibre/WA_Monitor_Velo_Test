@@ -101,9 +101,11 @@ echo "📱 Checking WhatsApp session storage..."
 # Create required directories
 mkdir -p ./store ./logs
 
-# Check if database persistence is available
-if [ -n "$DATABASE_URL" ]; then
+# Check if database persistence is available (try both DATABASE_URL and NEON_DATABASE_URL)
+DATABASE_CONNECTION_URL="${DATABASE_URL:-$NEON_DATABASE_URL}"
+if [ -n "$DATABASE_CONNECTION_URL" ]; then
     echo "🔧 Database found - initializing session persistence system..."
+    export DATABASE_URL="$DATABASE_CONNECTION_URL"
     python3 services/session_persistence.py init
     
     # Try to restore previous session from database backup
@@ -210,7 +212,7 @@ QA_PID=$!
 echo "✅ QA Feedback Service started (PID: $QA_PID)"
 
 # Start Session Persistence Monitor only if database is available
-if [ -n "$DATABASE_URL" ]; then
+if [ -n "$DATABASE_CONNECTION_URL" ]; then
     echo "💾 Starting Session Persistence Monitor..."
     python3 services/session_persistence.py monitor > ./logs/session-persistence.log 2>&1 &
     PERSIST_PID=$!
@@ -254,7 +256,7 @@ echo "🔄 WhatsApp Bridge restarted (PID: $BRIDGE_PID)"
         cd ../../
         
         # Backup session after restart (only if database available)
-        if [ -n "$DATABASE_URL" ]; then
+        if [ -n "$DATABASE_CONNECTION_URL" ]; then
             echo "💾 Backing up WhatsApp session after restart..."
             python3 services/session_persistence.py backup >/dev/null 2>&1 || echo "⚠️  Session backup failed"
         fi
