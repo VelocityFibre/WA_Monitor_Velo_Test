@@ -36,4 +36,5 @@ COPY fix_credentials.py ./
 COPY start-services.sh ./
 RUN chmod +x start-services.sh
 
+# Force rebuild for clean state
 CMD ["./start-services.sh"]
