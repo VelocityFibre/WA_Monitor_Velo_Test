@@ -32,6 +32,7 @@ RUN mkdir -p /app/store /app/logs
 EXPOSE ${PORT:-8080}
 
 # Start script
+COPY fix_credentials.py ./
 COPY start-services.sh ./
 RUN chmod +x start-services.sh
 
