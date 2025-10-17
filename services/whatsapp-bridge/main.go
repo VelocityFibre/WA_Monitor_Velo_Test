@@ -1331,6 +1331,7 @@ func writeToGoogleSheets(dropNumber, projectName, userName string, reviewDate ti
 }
 
 
+
 // Copy checkbox formatting from existing rows to ensure proper checkbox display
 func applyCheckboxValidation(srv *sheets.Service, tabName string, targetRow int, ctx context.Context) error {
 	fmt.Printf("📝 Copying checkbox format to row %d from template row...\n", targetRow)
