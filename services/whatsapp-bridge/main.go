@@ -1277,7 +1277,19 @@ func writeToGoogleSheets(dropNumber, projectName, userName string, reviewDate ti
 
 	config, err := google.CredentialsFromJSON(ctx, creds, sheets.SpreadsheetsScope)
 	if err != nil {
-		return fmt.Errorf("failed to parse credentials: %v", err)
+		// Check for the specific JSON unmarshaling error
+		if strings.Contains(err.Error(), "cannot unmarshal string into Go value") {
+			fmt.Println("⚠️  Initial credential parsing failed. Retrying with un-escaping...")
+			var credsStr string
+			if json.Unmarshal(creds, &credsStr) == nil {
+				// The file content was a JSON string, so we use the un-escaped version
+				config, err = google.CredentialsFromJSON(ctx, []byte(credsStr), sheets.SpreadsheetsScope)
+			}
+		}
+		// If it's still an error after the retry, fail for real
+		if err != nil {
+			return fmt.Errorf("failed to parse credentials: %v", err)
+		}
 	}
 
 	srv, err := sheets.NewService(ctx, option.WithCredentials(config))
