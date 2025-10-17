@@ -129,3 +129,5 @@ docker-data/
 railway-minimal/
 
 # Allow pre-built binary for Railway deployment
+credentials.json
+services/whatsapp-bridge/credentials.json
