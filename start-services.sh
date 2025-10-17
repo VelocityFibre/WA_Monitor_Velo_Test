@@ -24,75 +24,26 @@ export WHATSAPP_DB_PATH="$(pwd)/services/whatsapp-bridge/store/messages.db"
 # We'll set this after creating the credentials file
 export GOOGLE_SHEETS_ID="${GOOGLE_SHEETS_ID:-1TYxDLyCqDHr0Imb5j7X4uJhxccgJTO0KrDVAD0Ja0Dk}"
 
-# Create credentials.json from environment variable
-if [ -n "$GOOGLE_CREDENTIALS_JSON" ]; then
-    echo "🔐 Creating credentials.json from environment variable..."
-    
-    # Create credentials file in current directory (this always works)
-    CREDENTIALS_FILE="$(pwd)/credentials.json"
-    
-    # Debug: Show first few characters to understand format
-    echo "🔍 First 50 chars of credentials: ${GOOGLE_CREDENTIALS_JSON:0:50}..."
-    
-    # Handle different JSON formats that Railway might use
-    if [[ "$GOOGLE_CREDENTIALS_JSON" == "{"* ]]; then
-        # Already valid JSON format
-        echo "✅ Detected raw JSON format"
-        echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
-    elif [[ "$GOOGLE_CREDENTIALS_JSON" == *"\\n"* ]] || [[ "$GOOGLE_CREDENTIALS_JSON" == *"\\"* ]]; then
-        # Escaped JSON - decode escape sequences
-        echo "🔧 Detected escaped JSON, decoding..."
-        printf '%b' "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
-    else
-        # Try as-is first
-        echo "🔧 Trying as-is format..."
-        echo "$GOOGLE_CREDENTIALS_JSON" > "$CREDENTIALS_FILE"
-    fi
-    
-    # Validate that we created valid JSON
-    if python3 -m json.tool "$CREDENTIALS_FILE" >/dev/null 2>&1; then
-        echo "✅ Valid JSON credentials file created"
-    else
-        echo "❌ Invalid JSON, trying alternative approaches..."
-        
-        # Try removing outer quotes if present
-        if [[ "$GOOGLE_CREDENTIALS_JSON" == '"'*'"' ]]; then
-            echo "🔧 Removing outer quotes and trying again..."
-            CLEANED_JSON="${GOOGLE_CREDENTIALS_JSON:1:-1}"
-            printf '%b' "$CLEANED_JSON" > "$CREDENTIALS_FILE"
-        fi
-        
-        # Final validation
-        if ! python3 -m json.tool "$CREDENTIALS_FILE" >/dev/null 2>&1; then
-            echo "❌ CRITICAL: Cannot create valid credentials file"
-            echo "🔍 Raw environment variable content:"
-            echo "$GOOGLE_CREDENTIALS_JSON" | head -c 200
-            echo ""
-            echo "⚠️  Google Sheets integration will not work until credentials are fixed"
-        else
-            echo "✅ Successfully created valid JSON after cleanup"
-        fi
-    fi
-    
-    # Override Railway's GOOGLE_APPLICATION_CREDENTIALS to point to our actual file
+# Create credentials.json using the robust Python script
+echo "🐍 Creating credentials.json using Python script..."
+python3 fix_credentials.py
+
+# Set environment variables after file creation
+CREDENTIALS_FILE="$(pwd)/credentials.json"
+if [ -f "$CREDENTIALS_FILE" ]; then
     export GOOGLE_APPLICATION_CREDENTIALS="$CREDENTIALS_FILE"
-    
-    echo "✅ Credentials file created at $CREDENTIALS_FILE"
-    echo "🔍 Environment variables set:"
-    echo "  GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
-    echo "  GOOGLE_SHEETS_ID=$GOOGLE_SHEETS_ID"
-    echo "  WHATSAPP_DB_PATH=$WHATSAPP_DB_PATH"
-    
-    # Verify database file exists
-    if [ -f "$WHATSAPP_DB_PATH" ]; then
-        echo "✅ WhatsApp database found at $WHATSAPP_DB_PATH"
-    else
-        echo "⚠️  WhatsApp database NOT found at $WHATSAPP_DB_PATH"
-        echo "🔍 Available database files:"
-        find ./services/whatsapp-bridge/store/ -name "*.db" 2>/dev/null || echo "   No .db files found"
-    fi
+    echo "✅ GOOGLE_APPLICATION_CREDENTIALS set to: $GOOGLE_APPLICATION_CREDENTIALS"
 else
-    echo "⚠️  Warning: GOOGLE_CREDENTIALS_JSON environment variable not set"
+    echo "❌ Python script failed to create credentials file. Google Sheets integration will fail."
+fi
+
+# This check was originally inside the old block, keeping it here for consistency
+if [ -f "$WHATSAPP_DB_PATH" ]; then
+    echo "✅ WhatsApp database found at $WHATSAPP_DB_PATH"
+else
+    echo "⚠️  WhatsApp database NOT found at $WHATSAPP_DB_PATH"
+    echo "🔍 Available database files:"
+    find ./services/whatsapp-bridge/store/ -name "*.db" 2>/dev/null || echo "   No .db files found"
 fi
 
 # WhatsApp Session Management - Railway Volume Persistence
