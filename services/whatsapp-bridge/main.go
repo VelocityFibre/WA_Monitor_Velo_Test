@@ -987,7 +987,7 @@ func main() {
 		}
 		
 		// Request pairing code
-		code, err := client.PairPhone(phoneNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+		code, err := client.PairPhone(context.Background(), phoneNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		if err != nil {
 			logger.Errorf("Failed to request pairing code: %v", err)
 			// Fallback to QR code if phone pairing fails
