@@ -6,14 +6,17 @@ startCommand = "./start-services.sh"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
+# Configure volume for WhatsApp session persistence
+[volumes]
+data = "/app/store"
+
 [variables]
 # Required environment variables
 WHATSAPP_PHONE_NUMBER = "+27640412391"
 
-# Note: WhatsApp session persistence now handled via PostgreSQL database
-# instead of Railway volumes due to volume configuration limitations
-# Railway will use environment variables set in dashboard
-# These are defaults that can be overridden
+# WhatsApp session persistence via Railway volume
+# Volume will be mounted at /app/store to persist whatsapp.db and messages.db
 PORT = "8080"
 LOG_LEVEL = "INFO"
 DEBUG_MODE = "false"
+RAILWAY_RUN_UID = "0"  # Ensure non-root container user can write to volume

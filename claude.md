@@ -493,8 +493,41 @@ export LOG_LEVEL=DEBUG
 
 ---
 
+## 🚨 Railway Deployment Notes (Oct 17, 2025)
+
+### **Persistence Fix Applied**
+- **Issue**: WhatsApp sessions required QR code scanning on every Railway restart
+- **Solution**: Implemented Railway volume persistence (`/app/store`)
+- **Files Modified**: `railway.toml`, `start-services.sh`
+- **Result**: WhatsApp session now persists across deployments automatically
+
+### **Key Changes**
+```toml
+# railway.toml - Added volume mounting
+[volumes]
+data = "/app/store"
+
+[variables]
+RAILWAY_RUN_UID = "0"  # Volume write permissions
+```
+
+```bash
+# start-services.sh - Simplified persistence
+mkdir -p /app/store /app/logs
+ln -sf /app/store ./store
+ln -sf /app/logs ./logs
+```
+
+### **Deployment Process**
+1. Deploy updated code to Railway
+2. Scan QR code **once only** on first deployment
+3. Session persists automatically in `/app/store/whatsapp.db`
+4. Future deployments connect without QR codes
+
+---
+
 **🎉 This is your complete operational guide for managing the Velo Test project. All scripts and commands are designed to be run from the `projects/velo_test/` directory.**
 
-*Last Updated: $(date +%Y-%m-%d)*
+*Last Updated: October 17, 2025*
 
 https://github.com/VelocityFibre/WA_Monitor_Velo_Test
