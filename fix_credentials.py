@@ -17,14 +17,14 @@ print("✅ Found GOOGLE_CREDENTIALS_JSON environment variable.")
 output_file = "credentials.json"
 
 try:
-    # Attempt to parse the string to validate it's JSON
-    # This is a good sanity check
-    json.loads(cred_json_str)
-    
-    # Write the raw string to the file
+    # First, parse the environment variable string into a Python object.
+    # This correctly handles escaped characters and removes the outer quotes.
+    cred_data = json.loads(cred_json_str)
+
+    # Now, write the Python object back to the file as a properly formatted JSON object.
     with open(output_file, "w") as f:
-        f.write(cred_json_str)
-    
+        json.dump(cred_data, f, indent=2)
+
     print(f"✅ Successfully wrote credentials to {output_file}.")
     print("🐍 Credential fix script finished.")
 
